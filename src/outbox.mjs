@@ -7,11 +7,14 @@ import path from "node:path";
  * always hash to the exact same canonical JSON representation.
  */
 export function canonicalizeValue(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
   if (Array.isArray(value)) {
     return value.map(canonicalizeValue);
   }
   if (value !== null && typeof value === "object") {
-    const sorted = {};
+    const sorted = Object.create(null);
     for (const key of Object.keys(value).sort()) {
       if (value[key] !== undefined) {
         sorted[key] = canonicalizeValue(value[key]);
@@ -23,10 +26,8 @@ export function canonicalizeValue(value) {
 }
 
 export function hashCanonicalPayload(payload) {
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(canonicalizeValue(payload)), "utf8")
-    .digest("hex");
+  const serialized = JSON.stringify(canonicalizeValue(payload)) ?? "null";
+  return crypto.createHash("sha256").update(serialized, "utf8").digest("hex");
 }
 
 /**
@@ -234,6 +235,7 @@ export class LocalOutboxStore {
     this._syncInFlight = true;
     try {
       const pending = this.getPending();
+      let attempted = 0;
       let synced = 0;
       let duplicatesSafe = 0;
       let deadLettered = 0;
@@ -243,6 +245,7 @@ export class LocalOutboxStore {
         const liveRec = this.records.get(snap.idempotencyKey);
         if (!liveRec || liveRec.status !== "PENDING") continue;
         liveRec.attempts += 1;
+        attempted += 1;
 
         try {
           const res = await transportFn(structuredClone(liveRec));
@@ -269,7 +272,7 @@ export class LocalOutboxStore {
 
       return {
         busy: false,
-        attempted: pending.length,
+        attempted,
         synced,
         duplicatesSafe,
         deadLettered,
@@ -284,7 +287,7 @@ export class LocalOutboxStore {
 
 /**
  * Reference idempotent remote server endpoint for testing reconnect storms.
- * Rejects idempotencyKey reuse with a mismatched payload using HTTP 422.
+ * Rejects idempotencyKey reuse with a mismatched opType or payload using HTTP 422.
  */
 export class IdempotentRemoteServer {
   constructor() {
@@ -297,7 +300,7 @@ export class IdempotentRemoteServer {
     if (!this.online) {
       throw new Error("ECONNREFUSED: network offline");
     }
-    const payloadHash = hashCanonicalPayload(record.payload);
+    const payloadHash = hashCanonicalPayload({ opType: record.opType, payload: record.payload });
     if (this.committed.has(record.idempotencyKey)) {
       const existing = this.committed.get(record.idempotencyKey);
       if (existing.payloadHash !== payloadHash) {
