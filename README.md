@@ -12,7 +12,7 @@ Cloud-only point-of-sale and COD checkout apps fail in two ways when a connectio
 1. **Blocked writes:** The register freezes at peak hour while waiting on a remote HTTP response.
 2. **Duplicate writes on retry:** A request succeeds on the server, the ACK drops on shaky 4G, and the client retries the same ticket twice, double-charging inventory or shipping two orders.
 
-This engine persists every local write to an append-only journal with a deterministic SHA-256 `idempotencyKey`, survives torn writes during abrupt power loss, and reconciles HTTP `409` responses as clean already-committed acknowledgments when connectivity returns.
+This engine persists every local write to an `fsync`-flushed append-only journal with a key-order-canonical SHA-256 `idempotencyKey`, truncates trailing torn writes on boot after abrupt power loss, enforces a single-flight sync mutex, quarantines permanent `400`/`422` errors to a dead-letter queue so valid sales never head-of-line block, and reconciles explicit `409 { duplicate: true }` responses cleanly when connectivity returns.
 
 ## Architecture
 
