@@ -1,0 +1,24 @@
+{
+  "name": "local-first-outbox-sync",
+  "version": "1.0.0",
+  "description": "Offline-first transactional outbox queue and conflict-free idempotent reconnect sync engine for unreliable networks.",
+  "type": "module",
+  "main": "src/outbox.mjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "local-first",
+    "offline-first",
+    "outbox-pattern",
+    "idempotency",
+    "sync-engine",
+    "pos",
+    "distributed-systems"
+  ],
+  "author": "Khalef Abdelmadjid (@JARMID)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
